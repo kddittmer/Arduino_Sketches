@@ -1,0 +1,70 @@
+/*
+Project:   DHT22 Temperatur und Luftfeuchte Sensor
+Author:    Klaus-D. Dittmer mit Hilfe von Co-Pilot
+Date:      Created 03.01.2025
+Version:   V3.1; Python Host (Raspi/PC/LT) triggert
+	   Ausgabe des Aurduino Duplex Betrieb)
+
+IDE:       Arduino IDE 2.3.4 via Windows
+
+Required Host:
+  - Raspi
+Required Board (Tools -> Board -> Boards Manager...)
+  - Board: Arduino Mega 2560
+
+Required libraries (sketch -> include library -> manage libraries)
+ - Adafruit_DHT sensor library V1.4.6
+ - Adafruit Unified Sensor Library V1.1.14
+ - Backup Arduino Library DHT kxn (ggf. nicht erforderlich)
+ - Adafruit BMP
+
+Wirering for the BMP280/DHT11/DHT22 Sensors:
+BMP280	MEGA  DHT11 PIN   MEGA    DHT22   PIN   MEGA   
+VIN     5.0V  VCC   mid   5.0V    VCC     left  5.0V    
+GND     GND   GND   right GND     GND     right GND   
+SCL     A5    OUT   left  D7      OUT     mid   D8    
+SDA     A4
+*/
+
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+#include <DHT_U.h>
+#define DHTPIN 7        // Pin an dem das OUT Signal angeschlossen ist.
+const int raum221_id = 221;
+// Wert fuer raum_id DHT22 Nummer1
+// const int raum280_id = 280;
+// Wert fuer raum_id BMP280 (11X fuer DHT11; 22X fuer DHT22)
+DHT_Unified dht1(DHTPIN, DHT22);
+
+void setup() {
+  Serial.begin(115200);
+  dht1.begin();
+}
+
+void loop() {
+  if (Serial.available() > 0) {
+    String command = Serial.readStringUntil('\n');
+    if (command == "GET_DATA") {
+      sensors_event_t tempEvent, humEvent;
+
+      // Temperatur und Luftfeuchtigkeit am DHT22 messen
+      dht1.temperature().getEvent(&tempEvent);
+      dht1.humidity().getEvent(&humEvent);
+
+      if (!isnan(tempEvent.temperature) && !isnan(humEvent.relative_humidity)) {
+        // Wenn beide Werte gueltig sind, ausgeben
+        Serial.print("Raum: ");
+        Serial.print(raum221_id);
+        Serial.print("; Temperatur: ");
+        Serial.print(tempEvent.temperature);
+        Serial.print("; Feuchte: ");
+        Serial.println(humEvent.relative_humidity);
+      } else {
+        // Wenn einer der Werte ungueltig ist, Fehlermeldung ausgeben
+        Serial.print("Raum: ");
+        Serial.print(raum221_id);
+        Serial.println("; Fehler beim Lesen der Sensorwerte!");
+      }
+    }
+  }
+}
