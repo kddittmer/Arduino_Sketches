@@ -29,8 +29,8 @@ OUT   left   D7      OUT    mid   D8
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
 
-#define DHTPIN5 7            // Pin für den Sensor DHT11
-#define DHTPIN6 8            // Pin für den Sensor DHT22
+#define DHTPIN5 7            // Pin für Sensor DHT22
+#define DHTPIN6 8            // Pin für den Sensor DHTXX2
 
 const int sensor_id5 = 5; // Sensornummer für DHT22 in Raum 322
 const int sensor_id6 = 6; // Sensornummer für DHTXX in Raum 4XX
@@ -111,8 +111,9 @@ void loop() {
         Serial.println(humEvent5.relative_humidity);
       } else {
         // Wenn einer der Werte ungültig ist, Fehlermeldung ausgeben
-        Serial.println("Fehler beim Lesen der Sensorwerte!");
-      }
+        Serial.print("Sensor: ");
+        Serial.print(sensor_id5);
+        Serial.println("; Fehler beim Lesen der Sensorwerte!");      }
 
       if (!isnan(tempEvent6.temperature) && !isnan(humEvent6.relative_humidity)) {
         Serial.print("Sensor: ");
@@ -123,8 +124,9 @@ void loop() {
         Serial.println(humEvent6.relative_humidity);
       } else {
         // Wenn einer der Werte ungültig ist, Fehlermeldung ausgeben
-        Serial.println("Fehler beim Lesen der Sensorwerte!");
-      }
+        Serial.print("Sensor: ");
+        Serial.print(sensor_id6);
+        Serial.println("; Fehler beim Lesen der Sensorwerte!");      }
     }
   }
 }

@@ -84,5 +84,5 @@ void loop() {
     Serial.println("; Fehler beim Lesen der Sensorwerte!");
   }
 
-  delay(60000);    // XX Millisekunden warten, DHT11 Sensor Antwortzeit ist 1 Sek.
+  delay(5000);    // XX Millisekunden warten, DHT11 Sensor Antwortzeit ist 1 Sek.
 }
