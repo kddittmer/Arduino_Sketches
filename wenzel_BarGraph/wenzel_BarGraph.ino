@@ -79,7 +79,7 @@ void loop() {
     Wire.write(~(0x01 << i)); // Setze Schleifenzähler
     Wire.endTransmission(true);
     //Serial.println(~(0x01 << i), BIN); // Ausgabe des Bitmusters zur Überprüfung
-    delay(20);
+    delay(30);
   }
     for (int i = 7; i >=0 ; i--){
     Wire.beginTransmission(I2C_ADDR);
@@ -87,7 +87,7 @@ void loop() {
     Wire.write(~(0x01 << i)); // Setze Schleifenzähler
     Wire.endTransmission(true);
     //Serial.println(~(0x80 >> i), BIN); // Ausgabe des Bitmusters zur Überprüfung
-    delay(20);
+    delay(40);
   }
 
   delay(10);
