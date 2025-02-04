@@ -1,54 +1,79 @@
 /*
-Project:   DHT11 und DHT22 Temperatur und Luftfeuchte Sensor
+Project:   BME280 Temperatur/Luftfeuchte/Druck/Höhe und Anzeige
 Author:    Klaus-D. Dittmer mit Hilfe von Co-Pilot
-Date:      Created 12.01.2025
-Version:   V4.0; Host (PC/LT/Raspi) triggert Ausgabe mehrerer Sensoren und Anzeige-LED-Bars (Duplex Betrieb)
+Date:      Created 02.02.2025
+Version:   V5.0; Host (PC/LT/Raspi)triggert Ausgabe mehrerer Sensoren (Duplex Betrieb)
 IDE:       Arduino IDE 2.3.4 via Windows
 
 Required Host:
-  - PC/LT/RASPI
+  - PC/LT/Raspi
 Required Board (Tools -> Board -> Boards Manager...)
-  - Board: Arduino UNO/Mega
+  - Board: Arduino UNO
 
 Required libraries (sketch -> include library -> manage libraries)
- - Adafruit_DHT sensor library V1.4.6
+ - Adafruit_BME280_Library V2.2.4
+ - Adafruit_BusIO V1.16.3
  - Adafruit Unified Sensor Library V1.1.15
- - DHT sensor library
- - Backup Arduino Library DHT kxn (ggf. nicht erforderlich)
+ - Backup Arduino Library DHT kxn V3.4.4
+ - Makerlabvn_I2C_Motor_Driver V1.0.5 (derzeit nicht in Gebrauch)
 
 
-Wirering for the DHT11/DHT22 Sensors and LED-BAR:
-DHT11 PIN    UNO     DHT22   PIN  UNO   BAR  PIN  UNO
-VCC   mid    5.0V    VCC    left  5.0V  VDD    1  5.0V
-GND   right  GND     GND    right GND   INT    2  pullup 4k7
-OUT   left   D7      OUT    mid   D8    SCL    3  SCL
-                                        SDA    4  SDA
-                                        GND    5  GND
-
+Wirering for the DHT22/BME280/LED-Bargraph:
+DHT22   PIN  UNO  | BME280	UNO  | BAR  PIN  UNO
+VCC    left  5.0V | VIN     5.0V | VDD    1  5.0V  
+GND    right GND  | GND     GND  | INT    2  pullup 4k7   
+OUT    mid   D2   | SCL     SCL  | SCL    3  SCL   
+                  | SDA     SDA  | SDA    4  SDA
+                                 | GND    5  GND
 */
 #include <DHT.h>
 #include <DHT_U.h>
-#include <Adafruit_Sensor.h>
 #include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
 
-#define DHTPIN5 7            // Pin für Sensor DHT22
-#define DHTPIN6 8            // Pin für den Sensor DHTXX2
+#define DHTPIN1 2 // Pin für den DHT-Sensor falls vorhanden
+#define SEALEVELPRESSURE_HPA (1013.25)
 
-const int sensor_id5 = 5; // Sensornummer für DHT22 in Raum 322
-const int sensor_id6 = 6; // Sensornummer für DHTXX in Raum 4XX
+Adafruit_BME280 bme; // I2C
 
-#define I2C_ADDR_BAR5 0x20
-#define I2C_ADDR_BAR6 0x21
+const int sensor_id5 = 5; // Sensornummer für DHT22 in Raum 22X
+const int sensor_id6 = 6; // Sensornummer für BME280 in Raum 280
 
-DHT_Unified dht5(DHTPIN5, DHT22);
-DHT_Unified dht6(DHTPIN6, DHT22);
+#define I2C_ADDR_BAR 0x20 // Adresse des LED-Bargraph
+
+DHT_Unified dht1(DHTPIN1, DHT22);
+
+const int LED5rt = 3; // Pin für Temperatur-LED von Sensor 5
+const int LED5bl = 4; // Pin für Feuchte-LED von Sensor 5
+const int LED6rt = 5; // Pin für Temperatur-LED von Sensor 6
+const int LED6bl = 6; // Pin für Feuchte-LED von Sensor 6
+const int LED6gn = 7; // Pin für Druck-LED von Sensor 6
 
 void setup() {
   Serial.begin(115200);
-  dht5.begin();
-  dht6.begin();
+  while (!Serial);    // Zeit für den seriellen Monitor
+  Serial.print(F("Info; BME280 Test: "));
+
+  if (!bme.begin(0x76)) {
+    Serial.println("Info: kein gültiger BME280 Sensor im Board.");
+  } else {
+    Serial.println("Info: BME280 Sensor erfolgreich initialisiert.");
+  }
+
+  pinMode(LED5rt, OUTPUT);
+  pinMode(LED5bl, OUTPUT);
+  pinMode(LED6rt, OUTPUT);
+  pinMode(LED6bl, OUTPUT);
+  pinMode(LED6gn, OUTPUT);
+
   Wire.begin();
-  Wire.setClock(400000); // Setze die I2C-Taktfrequenz auf 400 kHz (optional)
+
+  // Initialisiere den Bargraph
+  Wire.beginTransmission(I2C_ADDR_BAR);
+  Wire.write(0x00); // Register 0x00 auswählen
+  Wire.write(0xFF); // Alle Ports als Ausgang konfigurieren
+  Wire.endTransmission(true);
 }
 
 void loop() {
@@ -58,8 +83,8 @@ void loop() {
       sensors_event_t tempEvent, humEvent;
 
       // Temperatur und Luftfeuchtigkeit des ersten Sensors messen
-      dht5.temperature().getEvent(&tempEvent);
-      dht5.humidity().getEvent(&humEvent);
+      dht1.temperature().getEvent(&tempEvent);
+      dht1.humidity().getEvent(&humEvent);
 
       if (!isnan(tempEvent.temperature) && !isnan(humEvent.relative_humidity)) {
         // Wenn beide Werte gültig sind, ausgeben
@@ -76,37 +101,14 @@ void loop() {
         Serial.println("; Fehler beim Lesen der Sensorwerte!");
       }
     } else if (command == "GET_ID6") {
-      sensors_event_t tempEvent, humEvent;
-
-      // Temperatur und Luftfeuchtigkeit des zweiten Sensors messen
-      dht6.temperature().getEvent(&tempEvent);
-      dht6.humidity().getEvent(&humEvent);
-
-      if (!isnan(tempEvent.temperature) && !isnan(humEvent.relative_humidity)) {
-        // Wenn beide Werte gültig sind, ausgeben
-        Serial.print("Sensor: ");
-        Serial.print(sensor_id6);
-        Serial.print("; Temperatur: ");
-        Serial.print(tempEvent.temperature);
-        Serial.print("; Feuchte: ");
-        Serial.println(humEvent.relative_humidity);
-      } else {
-        // Wenn einer der Werte ungültig ist, Fehlermeldung ausgeben
-        Serial.print("Sensor: ");
-        Serial.print(sensor_id6);
-        Serial.println("; Fehler beim Lesen der Sensorwerte!");
-      }
-
+      // BME280-Sensor auslesen
+      Get_BME280();
     } else if (command == "GET_ALL") {
-      sensors_event_t tempEvent5, humEvent5, tempEvent6, humEvent6;
+      sensors_event_t tempEvent1, humEvent1;
 
       // Temperatur und Luftfeuchtigkeit des ersten Sensors messen
-      dht5.temperature().getEvent(&tempEvent5);
-      dht5.humidity().getEvent(&humEvent5);
-
-      // Temperatur und Luftfeuchtigkeit des zweiten Sensors messen
-      dht6.temperature().getEvent(&tempEvent6);
-      dht6.humidity().getEvent(&humEvent6);
+      dht1.temperature().getEvent(&tempEvent5);
+      dht1.humidity().getEvent(&humEvent5);
 
       if (!isnan(tempEvent5.temperature) && !isnan(humEvent5.relative_humidity)) {
         // Wenn alle Werte gültig sind, ausgeben
@@ -118,39 +120,91 @@ void loop() {
         Serial.println(humEvent5.relative_humidity);
       } else {
         // Wenn einer der Werte ungültig ist, Fehlermeldung ausgeben
-        Serial.print("Sensor: ");
-        Serial.print(sensor_id5);
-        Serial.println("; Fehler beim Lesen der Sensorwerte!");      
+        Serial.println("Fehler beim Lesen der Sensorwerte!");
       }
-
-      if (!isnan(tempEvent6.temperature) && !isnan(humEvent6.relative_humidity)) {
-        Serial.print("Sensor: ");
-        Serial.print(sensor_id6);
-        Serial.print("; Temperatur: ");
-        Serial.print(tempEvent6.temperature);
-        Serial.print("; Feuchte: ");
-        Serial.println(humEvent6.relative_humidity);
-      } else {
-        // Wenn einer der Werte ungültig ist, Fehlermeldung ausgeben
-        Serial.print("Sensor: ");
-        Serial.print(sensor_id6);
-        Serial.println("; Fehler beim Lesen der Sensorwerte!");      
-      }
-    } else if (command.startsWith("BAR5_")) {
-      String valueStr = command.substring(5);
-      int value = (int) strtol(valueStr.c_str(), NULL, 16);
-      setLEDBar(I2C_ADDR_BAR5, ~value); // Invertiere den Wert für positive Logik
-    } else if (command.startsWith("BAR6_")) {
-      String valueStr = command.substring(5);
-      int value = (int) strtol(valueStr.c_str(), NULL, 16);
-      setLEDBar(I2C_ADDR_BAR6, ~value); // Invertiere den Wert für positive Logik
+      // BME280-Sensor auslesen
+      Get_BME280();
+    } else if (command.startsWith("SET5_")) {
+      // Hier könnte zukünftiger Code für Sensor 5 stehen
+    } else if (command.startsWith("SET6_")) {
+      processSetCommand(command.substring(5), 6);
     }
   }
 }
 
-void setLEDBar(uint8_t address, uint8_t value) {
-  Wire.beginTransmission(address);
-  Wire.write(address & 0xFE);   // Alle Ports als Ausgang
-  Wire.write(value);            // Setze den Wert
-  Wire.endTransmission(true);
+void Get_BME280() {
+  float temperature = bme.readTemperature();
+  float humidity = bme.readHumidity();
+  float pressure = bme.readPressure() / 100.0F;
+  float altitude = bme.readAltitude(SEALEVELPRESSURE_HPA); // Anpassung der Höhe
+
+  if (!isnan(temperature) && !isnan(pressure) && !isnan(altitude) && !isnan(humidity)) {
+    // Wenn alle Werte gültig sind, ausgeben
+    Serial.print("Sensor: ");
+    Serial.print(sensor_id6);
+    Serial.print("; Temperatur: ");
+    Serial.print(temperature);
+    Serial.print("; Feuchte: ");
+    Serial.print(humidity);
+    Serial.print("; Druck: ");
+    Serial.println(pressure);
+  } else {
+    // Wenn einer der Werte ungültig ist, Fehlermeldung ausgeben
+    Serial.println("Fehler beim Lesen der Sensorwerte vom BME280!");
+  }
 }
+
+void setLEDBar(int barIndex, int value) {
+  Wire.beginTransmission(I2C_ADDR_BAR);
+  Wire.write(I2C_ADDR_BAR & 0xFE);   // Alle Ports als Ausgang
+  Wire.write(~value); // Invertiere den Wert für negative Logik
+  Wire.endTransmission();
+}
+
+void processSetCommand(String command, int sensor_id) {
+  if (sensor_id == 6) {
+    String values[3];
+    int index = 0;
+    int lastPos = 0;
+    for (int i = 0; i < command.length(); i++) {
+      if (command.charAt(i) == '_') {
+        values[index++] = command.substring(lastPos, i);
+        lastPos = i + 1;
+      }
+    }
+    values[index] = command.substring(lastPos);
+
+    for (int i = 0; i <= index; i++) {
+      String valueStr = values[i];
+      char metric = valueStr.charAt(0);
+      String trend = valueStr.substring(2);
+
+      int ledValue = 0;
+      if (trend == "DN") {
+        ledValue = 0x07;
+      } else if (trend == "UP") {
+        ledValue = 0xE0;
+      } else if (trend == "EQ") {
+        ledValue = 0x18;
+      }
+
+      if (metric == 'rt') {
+        digitalWrite(LED6rt, HIGH);
+        setLEDBar(I2C_ADDR_BAR, ledValue);
+        delay(5000);
+        digitalWrite(LED6rt, LOW);
+      } else if (metric == 'bl') {
+        digitalWrite(LED6bl, HIGH);
+        setLEDBar(I2C_ADDR_BAR, ledValue);
+        delay(5000);
+        digitalWrite(LED6bl, LOW);
+      } else if (metric == 'gn') {
+        digitalWrite(LED6gn, HIGH);
+        setLEDBar(I2C_ADDR_BAR, ledValue);
+        delay(5000);
+        digitalWrite(LED6gn, LOW);
+      }
+    }
+  }
+}
+
